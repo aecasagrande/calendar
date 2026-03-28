@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clinic Appointment Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #F5F3EE;
+    --surface:   #FFFFFF;
+    --border:    #E0DDD6;
+    --border2:   #CCC9C0;
+    --text:      #1A1916;
+    --muted:     #6B6860;
+    --hint:      #9E9B94;
+    --blue:      #1A5FB4;
+    --blue-bg:   #EBF1FA;
+    --purple:    #4A3D8F;
+    --purple-bg: #EDEBF8;
+    --red:       #B91C1C;
+    --red-bg:    #FEF2F2;
+    --orange:    #92400E;
+    --orange-bg: #FEF3C7;
+    --amber:     #78350F;
+    --amber-bg:  #FFFBEB;
+    --green:     #166534;
+    --green-bg:  #F0FDF4;
+    --radius:    10px;
+    --radius-sm: 6px;
+    --shadow:    0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* ── Layout ── */
+  .page { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+  .header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .header-left h1 {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+    margin-bottom: 3px;
+  }
+  .header-left p { color: var(--muted); font-size: 13px; }
+
+  /* ── Drop zone ── */
+  #upload-view { max-width: 520px; margin: 4rem auto; }
+  .upload-card {
+    background: var(--surface);
+    border: 1.5px dashed var(--border2);
+    border-radius: var(--radius);
+    padding: 3.5rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    box-shadow: var(--shadow);
+  }
+  .upload-card:hover, .upload-card.drag {
+    border-color: var(--blue);
+    background: var(--blue-bg);
+  }
+  .upload-icon {
+    width: 52px; height: 52px;
+    background: var(--blue-bg);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 1.25rem;
+    font-size: 24px;
+  }
+  .upload-card h2 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+  .upload-card p  { color: var(--muted); font-size: 13px; }
+  .upload-card .formats {
+    display: inline-flex; gap: 6px; margin-top: 1rem;
+  }
+  .fmt-pill {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 999px; padding: 2px 10px;
+    font-size: 11px; font-weight: 500; color: var(--muted);
+    font-family: 'DM Mono', monospace;
+  }
+  #fileInput { display: none; }
+  .error-msg { color: var(--red); font-size: 13px; margin-top: 1rem; text-align: center; display: none; }
+
+  /* ── Stat cards ── */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 1.25rem; }
+  .stat-card {
+    background: var(--surface);
+    border: 1.5px solid transparent;
+    border-radius: var(--radius);
+    padding: 1rem 1.1rem;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .stat-card:hover    { box-shadow: var(--shadow-md); }
+  .stat-card.active   { border-color: var(--blue); }
+  .stat-num  { font-size: 26px; font-weight: 600; line-height: 1; margin-bottom: 4px; }
+  .stat-lbl  { font-size: 12px; color: var(--muted); }
+
+  /* ── Toolbar ── */
+  .toolbar {
+    display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap; align-items: center;
+  }
+  .toolbar input[type=text] {
+    flex: 1; min-width: 160px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 7px 12px;
+    font-size: 13px; font-family: inherit; color: var(--text);
+    outline: none; transition: border-color 0.15s;
+  }
+  .toolbar input[type=text]:focus { border-color: var(--blue); }
+  .toolbar select {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 7px 10px;
+    font-size: 13px; font-family: inherit; color: var(--text);
+    outline: none; cursor: pointer;
+  }
+  .btn {
+    padding: 7px 14px; border-radius: var(--radius-sm);
+    font-size: 13px; font-family: inherit; font-weight: 500;
+    cursor: pointer; border: 1px solid var(--border);
+    background: var(--surface); color: var(--text);
+    transition: background 0.12s, border-color 0.12s;
+    white-space: nowrap;
+  }
+  .btn:hover { background: var(--bg); border-color: var(--border2); }
+  .btn-primary {
+    background: var(--blue); border-color: var(--blue); color: #fff;
+  }
+  .btn-primary:hover { background: #1550a0; border-color: #1550a0; }
+
+  /* ── Table ── */
+  .table-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead { border-bottom: 1px solid var(--border); background: var(--bg); }
+  th {
+    padding: 9px 14px; text-align: left;
+    font-size: 11px; font-weight: 600; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.06em;
+    cursor: pointer; user-select: none; white-space: nowrap;
+  }
+  th:hover { color: var(--text); }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: #FAFAF8; }
+  .name-cell { font-weight: 500; }
+
+  /* ── Badges ── */
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+    font-family: 'DM Mono', monospace;
+  }
+  .b-ecg { background: var(--purple-bg); color: var(--purple); }
+  .b-st  { background: var(--blue-bg);   color: var(--blue); }
+
+  /* ── Status pills ── */
+  .status-pill {
+    display: inline-block; padding: 3px 9px; border-radius: 999px;
+    font-size: 11px; font-weight: 500;
+  }
+  .s-red    { background: var(--red-bg);    color: var(--red); }
+  .s-orange { background: var(--orange-bg); color: var(--orange); }
+  .s-amber  { background: var(--amber-bg);  color: var(--amber); }
+  .s-green  { background: var(--green-bg);  color: var(--green); }
+  .s-gray   { background: var(--bg);        color: var(--muted); }
+
+  .empty-row td {
+    text-align: center; padding: 3rem; color: var(--muted); font-size: 14px;
+  }
+
+  .table-footer {
+    font-size: 12px; color: var(--muted); text-align: right; margin-top: 0.6rem;
+  }
+
+  /* ── Action buttons area ── */
+  .dashboard-actions { display: flex; gap: 8px; }
+
+  /* ── PRINT STYLES ── */
+  @media print {
+    body { background: #fff; font-family: Arial, Helvetica, sans-serif; font-size: 10pt; }
+    .no-print { display: none !important; }
+    .page { padding: 0; max-width: 100%; }
+    .header { border-bottom: 1.5px solid #ccc; margin-bottom: 14px; padding-bottom: 10px; }
+    .header-left h1 { font-size: 15pt; }
+    .header-left p  { font-size: 9pt; color: #666; }
+    .stats, .toolbar { display: none; }
+    .table-card { border: none; box-shadow: none; border-radius: 0; }
+    table { font-size: 9.5pt; }
+    thead { background: #f0f0f0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    th { font-size: 8pt; padding: 5px 10px; color: #333; }
+    td { padding: 6px 10px; }
+    .badge, .status-pill {
+      background: none !important; color: #111 !important;
+      font-weight: 600; padding: 0; border-radius: 0; font-size: 9pt;
+    }
+    .print-header { display: block !important; }
+    .table-footer { font-size: 8pt; }
+    @page { margin: 1.5cm; }
+  }
+
+  .print-header {
+    display: none;
+    font-size: 9pt; color: #666;
+    margin-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- ── UPLOAD VIEW ── -->
+  <div id="upload-view">
+    <div style="text-align:center; margin-bottom: 2rem;">
+      <h1 style="font-size:22px; font-weight:600; margin-bottom:6px;">Clinic Appointment Tracker</h1>
+      <p style="color:var(--muted); font-size:13px;">ECG ↔ Stress Test &nbsp;·&nbsp; 6-month rotation</p>
+    </div>
+    <div class="upload-card" id="dropzone" onclick="document.getElementById('fileInput').click()">
+      <div class="upload-icon">📋</div>
+      <h2>Drop your calendar export here</h2>
+      <p>Click to browse, or drag and drop your file</p>
+      <div class="formats">
+        <span class="fmt-pill">.xlsx</span>
+        <span class="fmt-pill">.xls</span>
+        <span class="fmt-pill">.csv</span>
+      </div>
+    </div>
+    <div class="error-msg" id="parseError"></div>
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+
+    <div style="margin-top:2rem; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:1.25rem 1.5rem;">
+      <p style="font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:10px;">How it works</p>
+      <div style="display:grid; gap:8px;">
+        <div style="display:flex; gap:10px; align-items:flex-start; font-size:13px;">
+          <span style="color:var(--blue); font-weight:600; min-width:18px;">1.</span>
+          <span>Export your clinic calendar as an Excel or CSV file.</span>
+        </div>
+        <div style="display:flex; gap:10px; align-items:flex-start; font-size:13px;">
+          <span style="color:var(--blue); font-weight:600; min-width:18px;">2.</span>
+          <span>The app reads the <strong>Event Name</strong> (patient) and <strong>Description</strong> (test type + date) columns.</span>
+        </div>
+        <div style="display:flex; gap:10px; align-items:flex-start; font-size:13px;">
+          <span style="color:var(--blue); font-weight:600; min-width:18px;">3.</span>
+          <span>It calculates who is due for their next ECG or Stress Test in 6 months, and shows you a prioritized list.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── DASHBOARD VIEW ── -->
+  <div id="dashboard-view" style="display:none;">
+
+    <div class="header">
+      <div class="header-left">
+        <h1>Clinic Appointment Tracker</h1>
+        <p id="fileLabel"></p>
+      </div>
+      <div class="dashboard-actions no-print">
+        <button class="btn btn-primary" onclick="printPage()">🖨 Print call list</button>
+        <button class="btn" onclick="resetApp()">Load new file</button>
+      </div>
+    </div>
+
+    <!-- Print-only header (visible only when printing) -->
+    <div class="print-header" id="printHeader"></div>
+
+    <!-- Stat cards -->
+    <div class="stats no-print">
+      <div class="stat-card active" id="stat-all" onclick="setFilter('all')">
+        <div class="stat-num" id="cnt-all" style="color:var(--blue)">0</div>
+        <div class="stat-lbl">Total patients</div>
+      </div>
+      <div class="stat-card" id="stat-overdue" onclick="setFilter('overdue')">
+        <div class="stat-num" id="cnt-overdue" style="color:var(--red)">0</div>
+        <div class="stat-lbl">Overdue</div>
+      </div>
+      <div class="stat-card" id="stat-soon" onclick="setFilter('soon')">
+        <div class="stat-num" id="cnt-soon" style="color:var(--orange)">0</div>
+        <div class="stat-lbl">Due within 30 days</div>
+      </div>
+      <div class="stat-card" id="stat-ok" onclick="setFilter('ok')">
+        <div class="stat-num" id="cnt-ok" style="color:var(--green)">0</div>
+        <div class="stat-lbl">On track</div>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar no-print">
+      <input type="text" id="searchInput" placeholder="Search patient name…" oninput="renderTable()">
+      <select id="typeFilter" onchange="renderTable()">
+        <option value="all">All next appointment types</option>
+        <option value="ECG">Next: ECG</option>
+        <option value="ST">Next: Stress Test</option>
+      </select>
+      <button class="btn" onclick="setFilter('overdue'); renderTable()">Show overdue only</button>
+    </div>
+
+    <!-- Table -->
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr>
+            <th onclick="toggleSort('name')" style="width:24%">Patient <span id="sort-name"></span></th>
+            <th onclick="toggleSort('lastType')" style="width:8%">Last</th>
+            <th onclick="toggleSort('lastDate')" style="width:16%">Last date <span id="sort-lastDate">↑</span></th>
+            <th onclick="toggleSort('nextType')" style="width:8%">Next</th>
+            <th onclick="toggleSort('nextDate')" style="width:16%">Due date <span id="sort-nextDate"></span></th>
+            <th style="width:15%">Status</th>
+            <th onclick="toggleSort('count')" style="width:8%">Visits <span id="sort-count"></span></th>
+            <th class="no-print" style="width:5%">☑</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="table-footer" id="tableFooter"></div>
+
+  </div><!-- /dashboard -->
+</div><!-- /page -->
+
+<script>
+// ── Date parsing ──────────────────────────────────────────────────
+const MONTH_MAP = {
+  jan:0,january:0,feb:1,february:1,mar:2,march:2,apr:3,april:3,may:4,
+  jun:5,june:5,jul:6,july:6,aug:7,august:7,
+  sep:8,sept:8,september:8,oct:9,october:9,nov:10,november:10,dec:11,december:11
+};
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function parseDesc(desc) {
+  if (!desc || typeof desc !== 'string') return null;
+  const t = desc.trim();
+  let type = null;
+  if (/ECG/i.test(t)) type = 'ECG';
+  else if (/\bST\b/.test(t)) type = 'ST';
+  if (!type) return null;
+
+  const mp = 'jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?';
+  const re = new RegExp('(' + mp + ')\\s*(\\d{1,2})[,\\.\\s\\/]+\\s*(\\d{2,4})','i');
+  const m = t.match(re);
+  if (m) {
+    const mk = m[1].toLowerCase().substring(0, 3);
+    const month = MONTH_MAP[mk] ?? MONTH_MAP[m[1].toLowerCase()];
+    const day = parseInt(m[2]);
+    let year = parseInt(m[3]);
+    if (year < 100) year += 2000;
+    if (month !== undefined && day && year) {
+      return { type, date: new Date(year, month, day) };
+    }
+  }
+  return { type, date: null };
+}
+
+function addMonths(d, n) {
+  const r = new Date(d);
+  r.setMonth(r.getMonth() + n);
+  return r;
+}
+
+function fmtDate(d) {
+  if (!d) return '—';
+  return MON[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+}
+
+function statusOf(due, today) {
+  if (!due) return { label: 'Unknown', cls: 's-gray' };
+  const days = Math.round((due - today) / 86400000);
+  if (days < 0)   return { label: 'Overdue (' + Math.abs(days) + 'd)', cls: 's-red' };
+  if (days === 0) return { label: 'Due today', cls: 's-red' };
+  if (days <= 30) return { label: 'Due in ' + days + 'd', cls: 's-orange' };
+  if (days <= 60) return { label: 'Due in ' + days + 'd', cls: 's-amber' };
+  return { label: 'Due in ' + days + 'd', cls: 's-green' };
+}
+
+// ── State ─────────────────────────────────────────────────────────
+let allPatients = [];
+let visibleRows = [];
+let currentFilter = 'all';
+let sortKey = 'lastDate';
+let sortDir = 1;
+
+// ── Data processing ───────────────────────────────────────────────
+function processData(rows) {
+  const headers = (rows[0] || []).map(h => (h||'').toString().trim().toLowerCase());
+  let nameCol = headers.findIndex(h => h.includes('event name'));
+  let descCol = headers.findIndex(h => h.includes('description'));
+  if (nameCol === -1) nameCol = 0;
+  if (descCol === -1) descCol = headers.length - 1;
+
+  const patMap = {};
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    const name = (row[nameCol] || '').toString().trim();
+    if (!name || name.length < 2) continue;
+    const desc = (row[descCol] || '').toString().trim();
+    const parsed = parseDesc(desc);
+    if (!parsed || !parsed.date) continue;
+    if (!patMap[name]) patMap[name] = [];
+    patMap[name].push(parsed);
+  }
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  return Object.entries(patMap).map(([name, appts]) => {
+    appts.sort((a,b) => b.date - a.date);
+    const last = appts[0];
+    const nextType = last.type === 'ECG' ? 'ST' : 'ECG';
+    const nextDate = addMonths(last.date, 6);
+    const status = statusOf(nextDate, today);
+    return { name, lastType: last.type, lastDate: last.date, nextType, nextDate, status, count: appts.length };
+  });
+}
+
+// ── Filter / Sort / Render ────────────────────────────────────────
+function setFilter(f) {
+  currentFilter = f;
+  ['all','overdue','soon','ok'].forEach(x => {
+    const el = document.getElementById('stat-' + x);
+    if (el) el.classList.toggle('active', x === f);
+  });
+  renderTable();
+}
+
+function toggleSort(key) {
+  if (sortKey === key) sortDir *= -1;
+  else { sortKey = key; sortDir = 1; }
+  ['name','lastType','lastDate','nextType','nextDate','count'].forEach(k => {
+    const el = document.getElementById('sort-' + k);
+    if (el) el.textContent = (k === sortKey) ? (sortDir === 1 ? ' ↑' : ' ↓') : '';
+  });
+  renderTable();
+}
+
+function getFilteredRows() {
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const typeF  = document.getElementById('typeFilter').value;
+  const today  = new Date(); today.setHours(0,0,0,0);
+
+  return allPatients.filter(p => {
+    if (search && !p.name.toLowerCase().includes(search)) return false;
+    if (typeF !== 'all' && p.nextType !== typeF) return false;
+    if (currentFilter === 'overdue') return (p.nextDate - today) < 0;
+    if (currentFilter === 'soon')    { const d = p.nextDate - today; return d >= 0 && d <= 30*86400000; }
+    if (currentFilter === 'ok')      return (p.nextDate - today) > 30*86400000;
+    return true;
+  }).sort((a, b) => {
+    let av = a[sortKey], bv = b[sortKey];
+    if (av instanceof Date) av = av.getTime();
+    if (bv instanceof Date) bv = bv.getTime();
+    if (typeof av === 'string') return sortDir * av.localeCompare(bv);
+    return sortDir * ((av || 0) - (bv || 0));
+  });
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderTable() {
+  visibleRows = getFilteredRows();
+  const tbody = document.getElementById('tbody');
+
+  if (!visibleRows.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="8">No patients match this filter.</td></tr>';
+    document.getElementById('tableFooter').textContent = '';
+    return;
+  }
+
+  tbody.innerHTML = visibleRows.map((p, i) => `
+    <tr>
+      <td class="name-cell">${esc(p.name)}</td>
+      <td><span class="badge ${p.lastType === 'ECG' ? 'b-ecg' : 'b-st'}">${p.lastType}</span></td>
+      <td style="color:var(--muted);">${fmtDate(p.lastDate)}</td>
+      <td><span class="badge ${p.nextType === 'ECG' ? 'b-ecg' : 'b-st'}">${p.nextType}</span></td>
+      <td style="color:var(--muted);">${fmtDate(p.nextDate)}</td>
+      <td><span class="status-pill ${p.status.cls}">${p.status.label}</span></td>
+      <td style="color:var(--muted); font-family:'DM Mono',monospace;">${p.count}</td>
+      <td class="no-print"><input type="checkbox" style="width:15px;height:15px;cursor:pointer;accent-color:var(--blue);" title="Mark as called"></td>
+    </tr>`).join('');
+
+  const shown = visibleRows.length;
+  document.getElementById('tableFooter').textContent =
+    shown + ' of ' + allPatients.length + ' patient' + (allPatients.length !== 1 ? 's' : '') + ' shown';
+}
+
+function updateStats() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const over  = allPatients.filter(p => (p.nextDate - today) < 0).length;
+  const soon  = allPatients.filter(p => { const d = p.nextDate - today; return d >= 0 && d <= 30*86400000; }).length;
+  const ok    = allPatients.filter(p => (p.nextDate - today) > 30*86400000).length;
+  document.getElementById('cnt-all').textContent     = allPatients.length;
+  document.getElementById('cnt-overdue').textContent = over;
+  document.getElementById('cnt-soon').textContent    = soon;
+  document.getElementById('cnt-ok').textContent      = ok;
+}
+
+// ── Print ─────────────────────────────────────────────────────────
+function printPage() {
+  const today = new Date();
+  const dateStr = today.toLocaleDateString('en-CA', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+  const filterLabels = { all:'All patients', overdue:'Overdue patients', soon:'Due within 30 days', ok:'On track' };
+  const label = filterLabels[currentFilter] || 'All patients';
+  const ph = document.getElementById('printHeader');
+  ph.innerHTML = `<strong>Clinic Appointment Report</strong> &nbsp;·&nbsp; Printed ${dateStr} &nbsp;·&nbsp; ${label} &nbsp;·&nbsp; ${visibleRows.length} patients`;
+  window.print();
+}
+
+// ── File handling ─────────────────────────────────────────────────
+function handleFile(file) {
+  const errEl = document.getElementById('parseError');
+  errEl.style.display = 'none';
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+      allPatients = processData(rows);
+      if (!allPatients.length) throw new Error('No parseable ECG or Stress Test entries found. Check the Description column format.');
+      document.getElementById('fileLabel').textContent =
+        file.name + ' · ' + allPatients.length + ' patients loaded · ' +
+        new Date().toLocaleDateString('en-CA', { year:'numeric', month:'short', day:'numeric' });
+      updateStats();
+      renderTable();
+      document.getElementById('upload-view').style.display = 'none';
+      document.getElementById('dashboard-view').style.display = 'block';
+    } catch (err) {
+      errEl.textContent = '⚠ ' + err.message;
+      errEl.style.display = 'block';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function resetApp() {
+  allPatients = []; visibleRows = []; currentFilter = 'all'; sortKey = 'lastDate'; sortDir = 1;
+  document.getElementById('searchInput').value = '';
+  document.getElementById('typeFilter').value = 'all';
+  document.getElementById('dashboard-view').style.display = 'none';
+  document.getElementById('upload-view').style.display = 'block';
+  document.getElementById('fileInput').value = '';
+  document.getElementById('parseError').style.display = 'none';
+}
+
+// ── Drag & drop + file input ──────────────────────────────────────
+const dz = document.getElementById('dropzone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag');
+  const f = e.dataTransfer.files[0];
+  if (f) handleFile(f);
+});
+document.getElementById('fileInput').addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (f) handleFile(f);
+});
+</script>
+</body>
+</html>
